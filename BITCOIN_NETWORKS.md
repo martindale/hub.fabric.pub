@@ -7,7 +7,8 @@ Research and preparation for hub.fabric.pub multi-network support.
 | Network   | Purpose                    | Consensus      | Block time | RPC port | P2P port | Address prefix |
 |-----------|----------------------------|----------------|------------|----------|----------|----------------|
 | **mainnet** | Production, real value     | PoW            | ~10 min    | 8332     | 8333     | bc1, 1, 3      |
-| **testnet** | Public testing, PoW        | PoW            | Variable   | 18332    | 18333    | tb1, m/n, 2    |
+| **testnet** | Public testing (testnet3)  | PoW            | Variable   | 18332    | 18333    | tb1, m/n, 2    |
+| **testnet5** | Public testing, BIP 95    | PoW            | ~10 min    | 18352    | 18353    | tb1 (same as testnet) |
 | **signet**  | Stable testing, federated | Signed blocks  | ~1 min     | 38332    | 38333    | tb1 (same as testnet) |
 | **regtest** | Local dev, full control   | On-demand mine | Instant    | 18443*   | 18444    | bcrt1           |
 
@@ -33,6 +34,7 @@ Research and preparation for hub.fabric.pub multi-network support.
 |-----------|------|------|
 | mainnet   | 8332 | 8333 |
 | testnet   | 18332| 18333|
+| testnet5  | 18352| 18353|
 | signet    | 38332| 38333|
 | regtest   | 18443| 18444|
 
@@ -48,6 +50,9 @@ bitcoind -testnet
 # Signet (default global signet)
 bitcoind -signet
 
+# Testnet5 (BIP 95). Not in Bitcoin Core 29.4; the flag is refused until Core ships it.
+bitcoind -testnet5
+
 # Regtest
 bitcoind -regtest
 ```
@@ -60,6 +65,7 @@ Bitcoin Core uses chain-specific subdirs under datadir:
 |-----------|-----------|
 | mainnet   | (root)    |
 | testnet   | testnet3 |
+| testnet5  | testnet5 |
 | signet    | signet   |
 | regtest   | regtest  |
 
@@ -69,14 +75,18 @@ Cookie file: `datadir/<subdir>/.cookie`
 
 ### Current State
 
-- **Fabric Bitcoin service** (`@fabric/core`): Supports mainnet, testnet, signet, regtest, testnet4. Correct default RPC ports. Spawns bitcoind with `-testnet`, `-signet`, `-regtest` as needed.
+- **Fabric Bitcoin service** (`@fabric/core`): Supports mainnet, testnet, signet, regtest, testnet4, testnet5. Correct default RPC ports. Spawns bitcoind with `-testnet`, `-signet`, `-regtest`, `-testnet4`, `-testnet5` as needed. Pinned Bitcoin Core 29.4 refuses `-testnet5`.
 - **Hub**: Onboarding offers regtest, signet, testnet, mainnet. Managed mode auto-enabled for regtest only.
 - **Cookie path**: Fabric had `signet` chain subdir missing; fixed in this prep.
 - **Fabric P2P chain tip:** The Hub gossips each new local chain tip (ZMQ `hashblock`) to Fabric TCP peers as a signed `BitcoinBlock` message; peers relay. This is separate from Bitcoin Core P2P—operators align on which network the Fabric app targets (one network per deployment; regtest in dev). See `AGENTS.md` (Beacon + `BitcoinBlock`).
 
+### Testnet5 (BIP 95)
+
+Launched 2026-11-14. Genesis `00000000000008c1637e7d3252dc1c333d4546fd6fff6a474b200d674a91d497`, mined 05:03 UTC against mainnet block 975744. Address prefixes match testnet (`tb1`). There are no DNS seeds. The launch rehearsal (`npm run deploy -- --network testnet5 --local`) is pruned, does not mine, and connects to `wormer.libbitcoin.net:18353`, `carmine.libbitcoin.net:18353`, and `lapis.erisian.com.au:18353`. `testnet` remains testnet3. A managed node cannot sync this chain until Bitcoin Core accepts `-testnet5`; Core 29.4 does not.
+
 ### Configuration
 
-- **Env**: `FABRIC_BITCOIN_NETWORK=signet|testnet|mainnet|regtest`
+- **Env**: `FABRIC_BITCOIN_NETWORK=regtest|signet|testnet5|testnet|mainnet`
 - **Setup**: `stores/hub/STATE` → `.settings.BITCOIN_NETWORK` (and optional `BITCOIN_PRESET` / prune / listen / dbcache knobs from first-time setup)
 - **Unmanaged**: When `BITCOIN_MANAGED=false`, use default RPC port per network (not always 8332).
 - **Explorer HTTP fallback** (`@fabric/core` `Bitcoin`): optional `FABRIC_EXPLORER_URL` or `bitcoin.explorerBaseUrl` (origin only, e.g. `http://localhost:8080`). Unset means RPC-only for block/tx; address-index queries need an explorer or hub that exposes `/services/bitcoin/addresses/...`.

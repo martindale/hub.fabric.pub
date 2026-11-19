@@ -1,4 +1,5 @@
 'use strict';
+/* global chrome */
 
 /**
  * Fabric Hub extension content script.

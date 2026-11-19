@@ -47,7 +47,12 @@ const net = require('./lib/localNetwork');
 const PLAYNET_HUBS = Object.freeze(['hub.fabric.pub', 'hub.goon.vc:7779']);
 
 /** Bitcoin P2P port of a remote Hub's bitcoind (no mainnet: never addnode a public Hub there). */
-const BITCOIN_P2P_PORTS = Object.freeze({ regtest: 18444, signet: 38333, testnet: 18333 });
+const BITCOIN_P2P_PORTS = Object.freeze({
+  regtest: 18444,
+  signet: 38333,
+  testnet: 18333,
+  testnet5: 18353
+});
 
 /**
  * @param {string} spec `host`, `host:fabricPort`, or `https://host`
@@ -83,11 +88,11 @@ function parseArgs (argv) {
 
 function usage () {
   console.log([
-    'Usage: npm run deploy -- --network <regtest|signet|mainnet> --local [start|status|stop|restart|reset] [--playnet] [--remote <host[:port]>] [--only <instance>] [--keys] [--json] [--root <dir>] [--base <port>]',
+    'Usage: npm run deploy -- --network <regtest|signet|testnet5|mainnet> --local [start|status|stop|restart|reset] [--playnet] [--remote <host[:port]>] [--only <instance>] [--keys] [--json] [--root <dir>] [--base <port>]',
     '',
     '  start    start every instance, bootstrap admin tokens, check health, write network-profile.json',
     '  status   print instance health and the network profile',
-    '  stop     stop every instance (SIGTERM, then SIGKILL after 45 s)',
+    '  stop     stop every instance (SIGTERM, then SIGKILL after 45 s), then any bitcoind still on its datadir (SIGTERM only)',
     '  restart  stop, then start (keeps chains, stores, keys, admin tokens)',
     '  reset    stop, then delete chains and Hub stores (keeps keys unless --keys)',
     '',
@@ -535,8 +540,9 @@ async function start (ctx) {
       redialPeers: isSeed ? [] : remoteDials,
       // Never mine onto a public chain.
       mine: ownChain,
-      // The others sync from the seed.
-      bitcoinPeers: isSeed ? remoteBitcoin : []
+      // The others sync from the seed. A network with no seed (testnet5) still
+      // gets its announced peers, on every instance.
+      bitcoinPeers: net.bitcoinPeersFor(ctx.profile, { isSeed, remotePeers: remoteBitcoin })
     });
     net.writeJson(instance.fragmentFile, fragment, 0o600);
   }
@@ -640,7 +646,8 @@ async function matureSeed (ctx, seed) {
 async function stop (ctx) {
   for (const instance of ctx.instances.slice().reverse()) {
     const stopped = await net.stopDetached(instance.dir);
-    console.log(`[deploy] ${instance.name}: ${stopped ? 'stopped' : 'not running'}`);
+    const bitcoinds = await net.stopBitcoind(instance.dir);
+    console.log(`[deploy] ${instance.name}: ${stopped ? 'stopped' : 'not running'}${bitcoinds ? `; stopped ${bitcoinds} leftover bitcoind` : ''}`);
   }
 }
 

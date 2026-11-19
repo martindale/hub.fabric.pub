@@ -29,6 +29,8 @@ function defaultBitcoinRpcPort (network) {
   const n = String(network || 'mainnet').toLowerCase();
   if (n === 'regtest') return 18443;
   if (n === 'testnet') return 18332;
+  if (n === 'testnet4') return 48332;
+  if (n === 'testnet5') return 18352;
   if (n === 'signet') return 38332;
   return 8332;
 }
@@ -39,6 +41,7 @@ function bitcoinDataDirForNetwork (root, network) {
     mainnet: path.join('stores', 'bitcoin'),
     testnet: path.join('stores', 'bitcoin-testnet'),
     testnet4: path.join('stores', 'bitcoin-testnet4'),
+    testnet5: path.join('stores', 'bitcoin-testnet5'),
     signet: path.join('stores', 'bitcoin-signet'),
     regtest: path.join('stores', 'bitcoin-regtest'),
     playnet: path.join('stores', 'bitcoin-playnet')

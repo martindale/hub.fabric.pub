@@ -13,7 +13,7 @@ const accountKeys = require('@fabric/core/functions/accountKeys');
 
 const STORAGE_KEY = 'fabric.identity.local';
 const LOCAL_IDENTITY_PASSWORD_MIN = 8;
-const ACCOUNT_NETWORKS = Object.freeze(['mainnet', 'testnet', 'testnet4', 'signet', 'regtest']);
+const ACCOUNT_NETWORKS = Object.freeze(['mainnet', 'testnet', 'testnet4', 'testnet5', 'signet', 'regtest']);
 const MAX_ACCOUNT_INDEX = 0x7fffffff;
 
 /**

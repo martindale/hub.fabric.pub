@@ -53,7 +53,7 @@ function documentReducer (state = initialState, action) {
       return { ...state, loading: false, error: action.payload };
 
     case UPLOAD_DOCUMENT_REQUEST:
-      return { ...state, loading: true, error: null, fileUploaded: false, fabric_id: null, error: null };
+      return { ...state, loading: true, error: null, fileUploaded: false, fabric_id: null };
     case UPLOAD_DOCUMENT_SUCCESS:
       return { ...state, loading: false, fileUploaded: true, fabric_id: action.payload, error: null };
     case UPLOAD_DOCUMENT_FAILURE:

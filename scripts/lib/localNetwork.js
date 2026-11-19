@@ -15,7 +15,7 @@
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
-const { spawn } = require('child_process');
+const { spawn, execFile } = require('child_process');
 
 const REPO = path.join(__dirname, '..', '..');
 const HUB_SCRIPT = path.join(REPO, 'scripts', 'playnet-hub-with-settings.js');
@@ -67,6 +67,20 @@ const NETWORKS = Object.freeze({
     prune: 550,
     extraParams: ['-fallbackfee=0.00001']
   },
+  // BIP 95. No DNS seeds, so every instance connects to the announced nodes.
+  // P2P is 18353 (BIP 95 0.2.0). Pinned Bitcoin Core 29.4 does not accept -testnet5 yet.
+  testnet5: {
+    base: 33000,
+    seed: false,
+    beaconIntervalMs: 0,
+    prune: 550,
+    extraParams: ['-fallbackfee=0.00001', '-dnsseed=0'],
+    bitcoinPeers: [
+      'wormer.libbitcoin.net:18353',
+      'carmine.libbitcoin.net:18353',
+      'lapis.erisian.com.au:18353'
+    ]
+  },
   mainnet: {
     base: 32000,
     seed: false,
@@ -97,6 +111,27 @@ function networkProfile (network) {
   const p = NETWORKS[String(network || '').toLowerCase()];
   if (!p) throw new Error(`Unknown network "${network}" (expected ${Object.keys(NETWORKS).join(', ')})`);
   return Object.assign({ name: String(network).toLowerCase() }, p);
+}
+
+/**
+ * Bitcoin peers an instance dials with `-connect`. Announced peers (a public
+ * chain with no DNS seeds) go to every instance. Remote Hubs are dialed only
+ * by the seed, which is the only node that talks to them at boot.
+ * @param {object} profile network profile
+ * @param {Object} [opts]
+ * @param {boolean} [opts.isSeed]
+ * @param {string[]} [opts.remotePeers]
+ * @returns {string[]}
+ */
+function bitcoinPeersFor (profile, opts = {}) {
+  const announced = Array.isArray(profile && profile.bitcoinPeers) ? profile.bitcoinPeers : [];
+  const remote = opts.isSeed && Array.isArray(opts.remotePeers) ? opts.remotePeers : [];
+  const out = [];
+  for (const peer of remote.concat(announced)) {
+    const name = String(peer || '').trim();
+    if (name && !out.includes(name)) out.push(name);
+  }
+  return out;
 }
 
 /**
@@ -430,6 +465,64 @@ async function stopDetached (dir, timeoutMs = 45000) {
   return true;
 }
 
+/**
+ * Pids of the `bitcoind` processes in a `ps -Ao pid=,args=` listing that run on `datadir`.
+ * @param {string} listing
+ * @param {string} datadir
+ * @returns {number[]}
+ */
+function bitcoindPidsFromPs (listing, datadir) {
+  const flag = `-datadir=${datadir}`;
+  const pids = [];
+  for (const line of String(listing || '').split('\n')) {
+    const m = line.match(/^\s*(\d+)\s+(.+)$/);
+    if (!m) continue;
+    const args = m[2];
+    // The executable path may hold spaces; it ends where the first option starts.
+    const executable = args.split(/\s+-/)[0].trim();
+    if (!/^bitcoind(\.exe)?$/.test(path.basename(executable))) continue;
+    const at = args.indexOf(flag);
+    if (at < 0) continue;
+    const next = args.charAt(at + flag.length);
+    if (next && !/\s/.test(next)) continue;
+    pids.push(Number(m[1]));
+  }
+  return pids;
+}
+
+function listProcesses () {
+  if (process.platform === 'win32') return Promise.resolve('');
+  return new Promise((resolve) => {
+    execFile('ps', ['-ww', '-Ao', 'pid=,args='], { maxBuffer: 16 * 1024 * 1024 }, (err, stdout) => {
+      resolve(err ? '' : String(stdout));
+    });
+  });
+}
+
+/**
+ * Stop every `bitcoind` running on the instance's `bitcoin-datadir`. The Hub
+ * stops a bitcoind it spawned, but not one it attached to or one orphaned
+ * when the Hub was killed.
+ * @param {string} dir instance directory
+ * @param {number} [timeoutMs=120000]
+ * @returns {Promise<number>} how many were stopped
+ */
+async function stopBitcoind (dir, timeoutMs = 120000) {
+  const datadir = path.join(dir, 'bitcoin-datadir');
+  const pids = bitcoindPidsFromPs(await listProcesses(), datadir).filter(pidAlive);
+  // SIGTERM only: bitcoind flushes its chainstate on the way out, and SIGKILL can corrupt it.
+  for (const pid of pids) {
+    try { process.kill(pid, 'SIGTERM'); } catch (_) {}
+  }
+  const t0 = Date.now();
+  while (pids.some(pidAlive) && Date.now() - t0 < timeoutMs) await sleep(500);
+  const running = pids.filter(pidAlive);
+  if (running.length) {
+    throw new Error(`bitcoind ${running.join(', ')} (${datadir}) is still shutting down; wait for it or stop it by hand`);
+  }
+  return pids.length;
+}
+
 module.exports = {
   REPO,
   HUB_SCRIPT,
@@ -438,6 +531,7 @@ module.exports = {
   STRIPPED_ENV,
   sleep,
   networkProfile,
+  bitcoinPeersFor,
   instancePorts,
   instancesFor,
   networkRoot,
@@ -454,5 +548,7 @@ module.exports = {
   pidAlive,
   readPid,
   startDetached,
-  stopDetached
+  stopDetached,
+  bitcoindPidsFromPs,
+  stopBitcoind
 };

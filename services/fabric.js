@@ -1,7 +1,6 @@
 'use strict';
 
 // Fabric Core
-const Actor = require('@fabric/core/types/actor');
 const Service = require('@fabric/core/types/service');
 
 // Fabric HTTP
@@ -150,22 +149,7 @@ class FabricService extends Service {
   }
 
   commit () {
-    super.commit();
-
-    // Commit to state
-    const commit = new Actor({
-      content: {
-        state: this.state
-      }
-    });
-
-    this.emit('commit', {
-      id: commit.id,
-      type: 'Commit',
-      content: {
-        state: this.state
-      }
-    })
+    return super.commit();
   }
 }
 

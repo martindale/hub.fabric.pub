@@ -81,7 +81,15 @@ function parseArgs (argv) {
 
 /** bitcoind's per-chain subdirectory (cookie, debug.log). */
 function chainDir (datadir, network) {
-  const sub = { mainnet: '', main: '', testnet: 'testnet3', testnet4: 'testnet4', signet: 'signet', regtest: 'regtest' }[network];
+  const sub = {
+    mainnet: '',
+    main: '',
+    testnet: 'testnet3',
+    testnet4: 'testnet4',
+    testnet5: 'testnet5',
+    signet: 'signet',
+    regtest: 'regtest'
+  }[network];
   return sub ? path.join(datadir, sub) : datadir;
 }
 
