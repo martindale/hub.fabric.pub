@@ -33,6 +33,7 @@ const {
 } = require('semantic-ui-react');
 
 const ActivityStream = require('./ActivityStream');
+const ChatDeveloperPanel = ActivityStream.ChatDeveloperPanel;
 const { isHubNetworkStatusShape, bridgeConnectionPhase, bridgeWebSocketLoadingHint } = require('../functions/hubNetworkStatus');
 const { hydrateHubNetworkStatusViaHttp } = require('../functions/hydrateHubNetworkStatusViaHttp');
 const { loadHubUiFeatureFlags } = require('../functions/hubUiFeatureFlags');
@@ -336,7 +337,20 @@ class Home extends React.Component {
       operatorHealth: null,
       operatorHealthLoading: false,
       operatorHealthError: null,
-      promoDismissed: readStorageString(PROMO_DISMISSED_STORAGE_KEY) === '1'
+      promoDismissed: readStorageString(PROMO_DISMISSED_STORAGE_KEY) === '1',
+      globalChatDeveloperOpen: false
+    };
+    this._globalChatDeveloperRoot = null;
+    this._onGlobalChatDeveloperPointer = (event) => {
+      if (!this.state.globalChatDeveloperOpen) return;
+      const root = this._globalChatDeveloperRoot;
+      if (root && event.target && typeof root.contains === 'function' && root.contains(event.target)) return;
+      this.setState({ globalChatDeveloperOpen: false });
+    };
+    this._onGlobalChatDeveloperKey = (event) => {
+      if (event.key === 'Escape' && this.state.globalChatDeveloperOpen) {
+        this.setState({ globalChatDeveloperOpen: false });
+      }
     };
     this._snapshotRefreshSafetyTimer = null;
     this._healthRefreshTimer = null;
@@ -356,6 +370,10 @@ class Home extends React.Component {
   }
 
   componentDidMount () {
+    if (typeof document !== 'undefined') {
+      document.addEventListener('pointerdown', this._onGlobalChatDeveloperPointer);
+      document.addEventListener('keydown', this._onGlobalChatDeveloperKey);
+    }
     if (this.props.hubHttpAvailable === false) return;
     if (typeof window !== 'undefined') {
       window.addEventListener('networkStatusUpdate', this._onNetworkStatusEvent);
@@ -368,6 +386,10 @@ class Home extends React.Component {
   }
 
   componentWillUnmount () {
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('pointerdown', this._onGlobalChatDeveloperPointer);
+      document.removeEventListener('keydown', this._onGlobalChatDeveloperKey);
+    }
     if (typeof window !== 'undefined') {
       window.removeEventListener('networkStatusUpdate', this._onNetworkStatusEvent);
     }
@@ -785,30 +807,67 @@ class Home extends React.Component {
           </>
         )}
 
-        {/* ─── Public mesh shoutbox ─── */}
+        {/* ─── Global Chat ─── */}
         {networkStatus ? (
           <Segment
             role="region"
             style={{ marginTop: '1.25em' }}
             aria-labelledby="home-global-chat-heading"
           >
-            <Header as="h2" id="home-global-chat-heading" style={{ marginTop: 0 }}>
-              {hc.shoutbox.title}
-            </Header>
-            <p style={{ color: '#666', marginTop: '-0.25em', marginBottom: '0.75em' }}>
-              {showHomeOperatorLinks && uf.activities ? (
-                <>
-                  <Link to="/notifications">{hc.shoutbox.notifications}</Link>
-                  {' · '}
-                </>
-              ) : null}
-              {showHomeOperatorLinks ? (
-                <Link to="/settings/security">{nav.security}</Link>
-              ) : (
-                <span>{hc.shoutbox.visitor}</span>
-              )}
-            </p>
-            <div style={{ minHeight: '12rem' }}>
+            <div ref={(node) => { this._globalChatDeveloperRoot = node; }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75em' }}>
+                <Header as="h2" id="home-global-chat-heading" style={{ margin: 0 }}>
+                  {hc.shoutbox.title}
+                </Header>
+                <Button
+                  basic
+                  size="small"
+                  type="button"
+                  icon
+                  labelPosition="left"
+                  aria-expanded={this.state.globalChatDeveloperOpen}
+                  aria-controls="home-global-chat-developer"
+                  onClick={() => this.setState((s) => ({ globalChatDeveloperOpen: !s.globalChatDeveloperOpen }))}
+                  style={{ margin: 0, flex: '0 0 auto' }}
+                >
+                  <Icon name="code" />
+                  {t.common.developerDetails}
+                </Button>
+              </div>
+              <div
+                id="home-global-chat-developer"
+                role="region"
+                aria-label={t.common.developerDetails}
+                hidden={!this.state.globalChatDeveloperOpen}
+                style={{
+                  marginTop: '0.75em',
+                  padding: '0.75em 0.9em',
+                  background: '#fafafa',
+                  border: '1px solid rgba(34, 36, 38, 0.15)',
+                  borderRadius: '0.28571429rem',
+                  color: '#555',
+                  fontSize: '0.85em',
+                  lineHeight: 1.45
+                }}
+              >
+                <p style={{ margin: '0 0 0.65em' }}>{t.home.stream.shoutboxNote}</p>
+                <p style={{ margin: '0 0 0.65em' }}>
+                  {showHomeOperatorLinks && uf.activities ? (
+                    <>
+                      <Link to="/notifications">{hc.shoutbox.notifications}</Link>
+                      {' · '}
+                    </>
+                  ) : null}
+                  {showHomeOperatorLinks ? (
+                    <Link to="/settings/security">{nav.security}</Link>
+                  ) : (
+                    <span>{hc.shoutbox.visitor}</span>
+                  )}
+                </p>
+                <ChatDeveloperPanel bridgeRef={ref} />
+              </div>
+            </div>
+            <div style={{ minHeight: '12rem', marginTop: '0.75em' }}>
               <ActivityStream
                 bridge={ref}
                 bridgeRef={ref}
@@ -817,6 +876,8 @@ class Home extends React.Component {
                 onRequireUnlock={onRequireUnlock}
                 includeHeader={false}
                 entryTypeFilter="chat"
+                showDeveloperDetails={false}
+                showShoutboxNote={false}
               />
             </div>
           </Segment>

@@ -124,6 +124,19 @@ describe('ActivityStream', function () {
     assert.ok(!html.includes('hide-me.pdf'));
   });
 
+  it('can hide the public-chat warning', function () {
+    const html = renderActivityStream({ showShoutboxNote: false, showDeveloperDetails: false });
+    assert.ok(!html.includes('Public chat goes to every peer on the mesh unencrypted'));
+    assert.ok(!html.includes('Developer details'));
+  });
+
+  it('can hide developer details while keeping the public-chat warning', function () {
+    const html = renderActivityStream({ showDeveloperDetails: false });
+    assert.ok(html.includes('Public chat goes to every peer on the mesh unencrypted'));
+    assert.ok(!html.includes('Developer details'));
+    assert.ok(!html.includes('P2P_CHAT_MESSAGE'));
+  });
+
   it('gives the chat field a label that matches its accessible name', function () {
     const html = renderActivityStream();
     assert.ok(html.includes('<label for="fabric-chat-compose-input"'), 'visually hidden label points at the input');

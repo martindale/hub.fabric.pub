@@ -117,6 +117,41 @@ describe('Hub UI client vs hub chrome', function () {
     assert.ok(html.includes('href="/settings/bitcoin-wallet"') || html.includes('Local wallet'));
   });
 
+  it('Home names public chat Global Chat and parks developer details on a corner button', function () {
+    const networkStatusFromEvent = {
+      clock: 1,
+      peers: [],
+      network: { address: '127.0.0.1:7777' },
+      state: { status: 'ACTIVE' },
+      fabricPeerId: 'ab'.repeat(32)
+    };
+    const html = renderWithRuntime(
+      React.createElement(Home, { publicHubVisitor: false, networkStatusFromEvent }),
+      HUB_UI_RUNTIME_HUB
+    );
+    assert.ok(html.includes('>Global Chat<'));
+    assert.ok(!html.includes('Public mesh shoutbox'));
+    assert.ok(html.includes('aria-controls="home-global-chat-developer"'));
+    assert.ok(html.includes('aria-expanded="false"'));
+    const start = html.indexOf('id="home-global-chat-developer"');
+    assert.ok(start > 0);
+    const tagStart = html.lastIndexOf('<div', start);
+    const tag = html.slice(tagStart, html.indexOf('>', start) + 1);
+    assert.ok(tag.includes('hidden'), 'developer panel stays closed until the button is pressed');
+    assert.ok(html.includes('P2P_CHAT_MESSAGE'));
+    assert.strictEqual(
+      html.split('P2P_CHAT_MESSAGE').length - 1,
+      1,
+      'protocol detail is only in the corner panel'
+    );
+    const panelAt = html.indexOf('id="home-global-chat-developer"');
+    const note = 'Public chat goes to every peer on the mesh unencrypted';
+    assert.strictEqual(html.split(note).length - 1, 1, 'public-chat warning is only in the corner panel');
+    assert.ok(html.indexOf(note) > panelAt, 'public-chat warning is inside the corner panel');
+    assert.ok(html.indexOf('href="/settings/security"') > panelAt, 'Security link is inside the corner panel');
+    assert.ok(html.indexOf('>Global Chat<') < panelAt);
+  });
+
   it('Home promo hero is for public visitors only (hidden for signed-in operators)', function () {
     const { setHubUiFeatureFlag, saveHubUiFeatureFlags } = require('../functions/hubUiFeatureFlags');
     const { resetFabricBrowserStateStore } = require('../functions/fabricBrowserState');

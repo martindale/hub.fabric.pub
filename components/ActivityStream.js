@@ -25,6 +25,53 @@ function chatDisabledReasonFor (authLike) {
   return sc.chatDisabled[mode] || sc.chatDisabled.none;
 }
 
+function shortMeshId (value) {
+  if (typeof value !== 'string' || !value) return '-';
+  if (value.length <= 12) return value;
+  return `${value.slice(0, 8)}...${value.slice(-4)}`;
+}
+
+/**
+ * Protocol note and live mesh counters for public chat.
+ * @param {Object} [props]
+ * @param {Object} [props.bridgeRef]
+ * @param {Object} [props.bridge]
+ */
+function ChatDeveloperPanel ({ bridgeRef, bridge }) {
+  const active = bridgeRef || bridge;
+  const bridgeInstance = active && active.current;
+  const meshStatus = bridgeInstance && typeof bridgeInstance.webrtcMeshStatus !== 'undefined'
+    ? bridgeInstance.webrtcMeshStatus
+    : null;
+  const chatDebug = bridgeInstance && typeof bridgeInstance.webrtcChatDebugStatus !== 'undefined'
+    ? bridgeInstance.webrtcChatDebugStatus
+    : null;
+  const connectedPeerIds = chatDebug && Array.isArray(chatDebug.connectedPeerIds)
+    ? chatDebug.connectedPeerIds
+    : [];
+  const recipientPeerIds = chatDebug && Array.isArray(chatDebug.lastRecipientPeerIds)
+    ? chatDebug.lastRecipientPeerIds
+    : [];
+  const lastDeliveredTo = chatDebug && Number.isFinite(chatDebug.lastDeliveredTo)
+    ? chatDebug.lastDeliveredTo
+    : null;
+  const line = (meshStatus || chatDebug)
+    ? sc.meshDebug({
+      connected: meshStatus && Number.isFinite(meshStatus.connected) ? meshStatus.connected : 0,
+      self: shortMeshId(chatDebug && chatDebug.peerId),
+      peers: connectedPeerIds.length ? connectedPeerIds.map(shortMeshId).join(', ') : '-',
+      lastDelivered: lastDeliveredTo != null ? lastDeliveredTo : '-',
+      recipients: recipientPeerIds.length ? recipientPeerIds.map(shortMeshId).join(', ') : '-'
+    })
+    : null;
+  return (
+    <>
+      <div>{sc.shoutboxDeveloper}</div>
+      {line ? <div style={{ marginTop: '0.35em' }}>{line}</div> : null}
+    </>
+  );
+}
+
 /**
  * @param {object} entry
  * @returns {'chat'|'bitcoin'|'documents'|'network'|null}
@@ -362,32 +409,8 @@ class ActivityStreamElement extends React.Component {
     const hasMore = displayLimit < total;
     const activeBridgeRef = this.props.bridgeRef || this.props.bridge;
     const bridgeInstance = activeBridgeRef && activeBridgeRef.current;
-    const meshStatus = bridgeInstance && typeof bridgeInstance.webrtcMeshStatus !== 'undefined'
-      ? bridgeInstance.webrtcMeshStatus
-      : null;
-    const chatDebug = bridgeInstance && typeof bridgeInstance.webrtcChatDebugStatus !== 'undefined'
-      ? bridgeInstance.webrtcChatDebugStatus
-      : null;
-    const lastDeliveredTo = chatDebug && Number.isFinite(chatDebug.lastDeliveredTo)
-      ? chatDebug.lastDeliveredTo
-      : null;
-    const toShortId = (value) => {
-      if (typeof value !== 'string' || !value) return '-';
-      if (value.length <= 12) return value;
-      return `${value.slice(0, 8)}...${value.slice(-4)}`;
-    };
-    const connectedPeerIds = chatDebug && Array.isArray(chatDebug.connectedPeerIds)
-      ? chatDebug.connectedPeerIds
-      : [];
-    const recipientPeerIds = chatDebug && Array.isArray(chatDebug.lastRecipientPeerIds)
-      ? chatDebug.lastRecipientPeerIds
-      : [];
-    const connectedPeerLabel = connectedPeerIds.length
-      ? connectedPeerIds.map(toShortId).join(', ')
-      : '-';
-    const recipientPeerLabel = recipientPeerIds.length
-      ? recipientPeerIds.map(toShortId).join(', ')
-      : '-';
+    const showDeveloperDetails = this.props.showDeveloperDetails !== false;
+    const showShoutboxNote = this.props.showShoutboxNote !== false;
     const canSubmitChat = (
       bridgeInstance &&
       typeof bridgeInstance.hasUnlockedIdentity === 'function'
@@ -701,26 +724,21 @@ class ActivityStreamElement extends React.Component {
           )}
         </div>
         <div style={{ marginTop: '0.5em' }}>
-          {(
+          {(showShoutboxNote || showDeveloperDetails) ? (
             <div style={{ marginBottom: '0.5em', color: '#666', fontSize: '0.85em' }}>
-              {sc.shoutboxNote}
-              <details className="hub-developer-details">
-                <summary>{t.common.developerDetails}</summary>
-                {sc.shoutboxDeveloper}
-                {(meshStatus || chatDebug) ? (
-                  <div style={{ marginTop: '0.35em' }}>
-                    {sc.meshDebug({
-                      connected: meshStatus && Number.isFinite(meshStatus.connected) ? meshStatus.connected : 0,
-                      self: toShortId(chatDebug && chatDebug.peerId),
-                      peers: connectedPeerLabel,
-                      lastDelivered: lastDeliveredTo != null ? lastDeliveredTo : '-',
-                      recipients: recipientPeerLabel
-                    })}
-                  </div>
-                ) : null}
-              </details>
+              {showDeveloperDetails ? (
+                <details className="hub-developer-details">
+                  <summary>{t.common.developerDetails}</summary>
+                  {showShoutboxNote ? (
+                    <div style={{ marginBottom: '0.35em' }}>{sc.shoutboxNote}</div>
+                  ) : null}
+                  <ChatDeveloperPanel bridgeRef={activeBridgeRef} />
+                </details>
+              ) : (
+                showShoutboxNote ? sc.shoutboxNote : null
+              )}
             </div>
-          )}
+          ) : null}
           {this.state.chatWarning && (
             <div style={{ marginBottom: '0.5em' }}>
               <Label basic color='orange'>
@@ -790,3 +808,4 @@ function ActivityStream (props) {
 }
 
 module.exports = ActivityStream;
+module.exports.ChatDeveloperPanel = ChatDeveloperPanel;

@@ -112,7 +112,7 @@ module.exports = {
       link: featureVisibility
     },
     shoutbox: {
-      title: 'Public mesh shoutbox',
+      title: 'Global Chat',
       notifications: 'Notifications',
       visitor: 'Messages here are public and unencrypted. Sign in to see notifications and activity.'
     },
